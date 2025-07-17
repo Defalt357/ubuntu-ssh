@@ -1,0 +1,59 @@
+name: VPS SSH via Serveo (6 horas)
+
+on: [push]
+
+jobs:
+  vps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 horas máximo
+
+    steps:
+      - name: Configurar ambiente
+        run: |
+          mkdir -p ~/.ssh
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+
+      - name: Gerar chaves SSH
+        run: |
+          ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -N ""
+          cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Mostrar credenciais
+        run: |
+          echo "===================== DADOS DE ACESSO ====================="
+          echo "----- CHAVE PRIVADA SSH -----"
+          cat ~/.ssh/id_rsa
+          echo "----- FIM DA CHAVE -----"
+          echo "Aguardando conexão Serveo..."
+
+      - name: Configurar SSH
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openssh-server
+          sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+          sudo service ssh restart
+
+      - name: Conectar ao Serveo (TCP)
+        run: |
+          for i in {1..5}; do
+            echo "▶ Tentativa $i/5 de conexão TCP..."
+            ssh -o ExitOnForwardFailure=yes -N -T -R 0:localhost:22 serveo.net > serveo.log 2>&1 &
+            sleep 10
+            
+            if URL=$(grep -oE "Forwarding TCP.+:([0-9]+)" serveo.log); then
+              echo "=========================================="
+              echo "✅ CONEXÃO BEM-SUCEDIDA!"
+              echo "🌐 URL: serveo.net:$(echo $URL | cut -d: -f3)"
+              echo "👤 Usuário: $(whoami)"
+              echo "⏳ Tempo restante: 6 horas"
+              echo "=========================================="
+              break
+            else
+              pkill -f "ssh.*serveo" || true
+              sleep 5
+            fi
+          done
+
+          # Manter ativo
+          sleep 21600
