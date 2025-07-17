@@ -1,51 +1,63 @@
-name: VPS SSH via Serveo (6 horas)
+name: VPS SSH via Ngrok (6 horas)
 
 on: [push]
 
 jobs:
   vps:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # 6 horas máximo
+    timeout-minutes: 360  # 6 horas de timeout máximo
 
     steps:
-      - name: Configurar ambiente
-        run: |
-          mkdir -p ~/.ssh
-          echo "StrictHostKeyChecking no" >> ~/.ssh/config
-
+      # Configuração básica do SSH
       - name: Gerar chaves SSH
         run: |
+          mkdir -p ~/.ssh
           ssh-keygen -t rsa -f ~/.ssh/id_rsa -q -N ""
           cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
           chmod 600 ~/.ssh/id_rsa
 
-      - name: Mostrar credenciais
+      - name: Mostrar chave privada
         run: |
-          echo "===================== DADOS DE ACESSO ====================="
-          echo "----- CHAVE PRIVADA SSH -----"
+          echo "----- INÍCIO DA CHAVE PRIVADA SSH (COLE NO TERMIUS) -----"
           cat ~/.ssh/id_rsa
-          echo "----- FIM DA CHAVE -----"
-          echo "Aguardando conexão Serveo..."
+          echo "----- FIM DA CHAVE PRIVADA -----"
+          echo "Aguardando configuração do Ngrok..."
 
-      - name: Configurar SSH
+      - name: Instalar SSH
         run: |
           sudo apt-get update
           sudo apt-get install -y openssh-server
-          sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
-          sudo service ssh restart
+          sudo service ssh start
 
-      -- name: Configurar Ngrok
-  run: |
-    curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
-    echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-    sudo apt update && sudo apt install -y ngrok
-    ./ngrok authtoken ${{ secrets.NGROK_TOKEN }}
-    ./ngrok tcp 22 --log=stdout > ngrok.log &
-    sleep 10
-    grep "url=tcp://" ngrok.log
-  env:
-    NGROK_TOKEN: ${{ secrets.  authtoken: 300XeosAblNXxXAml8ymDYFiVKs_54smMfL1JtBECTigf7nj5
- }}
+      # Configuração do Ngrok (método direto sem apt)
+      - name: Baixar e configurar Ngrok
+        run: |
+          wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+          tar xzf ngrok-v3-stable-linux-amd64.tgz
+          chmod +x ngrok
+          ./ngrok config add-authtoken ${{ secrets.NGROK_TOKEN }}
+          echo "Ngrok configurado com sucesso!"
+        env:
+          NGROK_TOKEN: ${{ secrets.NGROK_TOKEN }}
 
-          # Manter ativo
+      - name: Iniciar túnel Ngrok
+        run: |
+          ./ngrok tcp 22 --log=stdout > ngrok.log &
+          sleep 10
+          URL=$(grep -oE "url=tcp://(.+)" ngrok.log | cut -d'/' -f3)
+          echo "========================================"
+          echo "✅ TÚNEL SSH ATIVO!"
+          echo "🌐 ENDEREÇO: $URL"
+          echo "👤 USUÁRIO: $(whoami)"
+          echo "⏳ DURAÇÃO: 6 horas"
+          echo "========================================"
+          
+          # Manter VPS ativa por 6 horas (21.600 segundos)
           sleep 21600
+
+      - name: Verificar status (opcional)
+        run: |
+          echo "Status do Ngrok:"
+          ./ngrok status
+          echo "\nConexões SSH ativas:"
+          sudo netstat -tulnp | grep sshd
