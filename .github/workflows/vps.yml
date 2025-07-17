@@ -34,26 +34,18 @@ jobs:
           sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
           sudo service ssh restart
 
-      - name: Conectar ao Serveo (TCP)
-        run: |
-          for i in {1..5}; do
-            echo "▶ Tentativa $i/5 de conexão TCP..."
-            ssh -o ExitOnForwardFailure=yes -N -T -R 0:localhost:22 serveo.net > serveo.log 2>&1 &
-            sleep 10
-            
-            if URL=$(grep -oE "Forwarding TCP.+:([0-9]+)" serveo.log); then
-              echo "=========================================="
-              echo "✅ CONEXÃO BEM-SUCEDIDA!"
-              echo "🌐 URL: serveo.net:$(echo $URL | cut -d: -f3)"
-              echo "👤 Usuário: $(whoami)"
-              echo "⏳ Tempo restante: 6 horas"
-              echo "=========================================="
-              break
-            else
-              pkill -f "ssh.*serveo" || true
-              sleep 5
-            fi
-          done
+      -- name: Configurar Ngrok
+  run: |
+    curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+    echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+    sudo apt update && sudo apt install -y ngrok
+    ./ngrok authtoken ${{ secrets.NGROK_TOKEN }}
+    ./ngrok tcp 22 --log=stdout > ngrok.log &
+    sleep 10
+    grep "url=tcp://" ngrok.log
+  env:
+    NGROK_TOKEN: ${{ secrets.  authtoken: 300XeosAblNXxXAml8ymDYFiVKs_54smMfL1JtBECTigf7nj5
+ }}
 
           # Manter ativo
           sleep 21600
